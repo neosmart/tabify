@@ -1,0 +1,8 @@
+[package]
+name = "tabify"
+version = "0.1.0"
+authors = ["Mahmoud Al-Qudsi <mqudsi@neosmart.net>"]
+
+[dependencies]
+regex = "0.2"
+tempfile = "2.2"
