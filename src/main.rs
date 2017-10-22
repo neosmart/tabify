@@ -1,6 +1,6 @@
 extern crate regex;
 extern crate tempfile;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
@@ -21,7 +21,9 @@ fn main() {
 
     for f in &files {
         let path = std::path::Path::new(f);
-        process_path(path, &mode, &tab_width);
+        if let Err(e) = process_path(path, &mode, &tab_width) {
+            eprintln!("{}: {}", path.display(), e);
+        }
     }
 }
 
@@ -67,23 +69,104 @@ fn process_path(path: &Path, mode: &Mode, width: &i32) -> Result<(), String> {
     use tempfile::tempfile;
 
 
-    let mut file = File::open(path).map_err(|e| format!("{}", e))?;
+    let file = File::open(path).map_err(|e| format!("{}", e))?;
     let mut reader = BufReader::new(file);
-    let mut temp = tempfile();
+    let temp = tempfile().map_err(|e| format!("{}", e))?;
+    let mut writer = BufWriter::new(temp);
+
+
+    let transform = match *mode {
+        Mode::Tabify => tabify,
+        Mode::Untabify => untabify
+    };
 
     let mut line: String = "".to_owned();
-    match *mode {
-        Mode::Tabify => while (reader.read_line(&mut line).unwrap() != 0) { tabify(&mut line, width) },
-        Mode::Untabify => while (reader.read_line(&mut line).unwrap() != 0) { untabify(&mut line, width) }
-    };
+    while reader.read_line(&mut line).unwrap() != 0 {
+        let new_line = transform(&line, *width);
+        writer.write(new_line.as_bytes()).map_err(|e| format!("{}", e))?;
+        writer.write(&[0xAu8]).map_err(|e| format!("{}", e))?;
+    }
 
     return Ok(());
 }
 
-fn tabify(line: &str, width: &i32) {
-
+enum ParseState {
+    Leader,
+    Remainder
 }
 
-fn untabify(line: &str, width: &i32) {
-    while (line.
+fn tabify(line: &str, width: i32) -> String {
+    let mut new_line = Vec::<char>::new();
+    let mut space_count = 0;
+    let mut state = ParseState::Leader;
+
+    for c in line.chars() {
+        match state {
+            ParseState::Leader =>
+                match c {
+                    ' ' => {
+                        space_count += 1;
+                        if space_count == width {
+                            space_count = 0;
+                            new_line.push('\t');
+                        }
+                    },
+                    _ => {
+                        //end of leading spaces
+                        state = ParseState::Remainder;
+                        for _ in 0..space_count {
+                            new_line.push(' ');
+                        }
+                        new_line.push(c);
+                    }
+                },
+                ParseState::Remainder => {
+                    new_line.push(c);
+                }
+        }
+    }
+
+    return new_line.into_iter().collect();
+}
+
+#[test]
+fn tabify_test() {
+    assert_eq!("  2 leading spaces", tabify("  2 leading spaces", 4));
+    assert_eq!("\t4 leading spaces", tabify("    4 leading spaces", 4));
+    assert_eq!("\t   7 leading spaces", tabify("       7 leading spaces", 4));
+}
+
+fn untabify(line: &str, width: i32) -> String {
+    let mut new_line = Vec::<char>::new();
+    let mut state = ParseState::Leader;
+
+    for c in line.chars() {
+        match state {
+            ParseState::Leader =>
+                match c {
+                    '\t' => {
+                        for _ in 0..width {
+                            new_line.push(' ');
+                        }
+                    },
+                    _ => {
+                        //end of leading tabs
+                        state = ParseState::Remainder;
+                        new_line.push(c);
+                    }
+                },
+                ParseState::Remainder => {
+                    new_line.push(c);
+                }
+        }
+    }
+
+    return new_line.into_iter().collect();
+}
+
+#[test]
+fn untabify_test() {
+    assert_eq!("    1 leading tab", untabify("\t1 leading tab", 4));
+    assert_eq!("        2 leading tabs", untabify("\t\t2 leading tabs", 4));
+    assert_eq!("        \ttab spaces tab", untabify("\t    \ttab spaces tab", 4));
 }
