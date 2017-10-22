@@ -134,6 +134,7 @@ fn tabify_test() {
     assert_eq!("  2 leading spaces", tabify("  2 leading spaces", 4));
     assert_eq!("\t4 leading spaces", tabify("    4 leading spaces", 4));
     assert_eq!("\t   7 leading spaces", tabify("       7 leading spaces", 4));
+    assert_eq!("\tspaces    in middle", tabify("    spaces    in middle", 4));
 }
 
 fn untabify(line: &str, width: i32) -> String {
