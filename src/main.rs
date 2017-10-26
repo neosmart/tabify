@@ -1,5 +1,9 @@
 extern crate regex;
 extern crate tempfile;
+
+use std::fs::File;
+use std::io::{BufReader, BufWriter};
+use std::io::prelude::*;
 use std::path::Path;
 
 fn main() {
@@ -16,18 +20,25 @@ fn main() {
             "-t" | "--tabify" => { mode = Mode::Tabify },
             "-u" | "--untabify" => { mode = Mode::Untabify },
             "-w" | "--width" => { tab_width = arg.parse().unwrap_or_else(|_| usage_error("Invalid space count provided!")) },
-            f @ _ => { files.push(f.to_owned()) },
+            _ => { files.push(arg) },
         }
     }
 
     if files.is_empty() {
-        usage_error("No files provided!");
-    }
+        //stdin to stdout mode
+        let reader = BufReader::new(std::io::stdin());
+        let writer = BufWriter::new(std::io::stdout());
 
-    for f in &files {
-        let path = std::path::Path::new(f);
-        if let Err(e) = process_path(path, &mode, &tab_width) {
-            eprintln!("{}: {}", path.display(), e);
+        if let Err(e) = process(reader, writer, &mode, &tab_width) {
+            eprintln!("{}", e);
+        }
+    }
+    else {
+        for f in &files {
+            let path = std::path::Path::new(f);
+            if let Err(e) = process_path(path, &mode, &tab_width) {
+                eprintln!("{}: {}", path.display(), e);
+            }
         }
     }
 }
@@ -40,7 +51,7 @@ enum Mode {
 fn help() {
     println!("tabify by NeoSmart Technologies - https://neosmart.net/");
     println!("");
-    println!("USAGE: tabify [OPTIONS] file1..");
+    println!("USAGE: tabify [OPTIONS] [file1 [file2 ..]]");
     println!("\t -t --tabify        Convert spaces to tabs");
     println!("\t -u --untabify      Convert tabs to spaces");
     println!("\t -w --width WIDTH   Set the tab width in spaces (default: 4)");
@@ -66,24 +77,24 @@ fn usage_error(msg: &str) -> ! {
 }
 
 fn process_path(path: &Path, mode: &Mode, width: &i32) -> Result<(), String> {
-    use std::fs::File;
-    use std::io::prelude::*;
-    use std::io::{BufReader, BufWriter};
     use tempfile::tempfile;
 
-    let path_str = path.as_os_str().to_string_lossy();
     if !path.exists() {
-        return Err("file not found!");
+        return Err("file not found!".into());
     }
     if !path.is_file() {
-        return Err("path does not refer to a file!");
+        return Err("path does not refer to a file!".into());
     }
 
     let file = File::open(path).map_err(|e| format!("{}", e))?;
-    let mut reader = BufReader::new(file);
+    let reader = BufReader::new(file);
     let temp = tempfile().map_err(|e| format!("{}", e))?;
-    let mut writer = BufWriter::new(temp);
+    let writer = BufWriter::new(temp);
 
+    return process(reader, writer, mode, width);
+}
+
+fn process<R,W>(mut reader: BufReader<R>, mut writer: BufWriter<W>, mode: &Mode, width: &i32) -> Result<(), String> where R: Read, W: Write {
     let transform = match *mode {
         Mode::Tabify => tabify,
         Mode::Untabify => untabify
