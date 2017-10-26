@@ -15,7 +15,7 @@ fn main() {
             "-V" | "--version" => version(),
             "-t" | "--tabify" => { mode = Mode::Tabify },
             "-u" | "--untabify" => { mode = Mode::Untabify },
-            "-s" | "--spaces" => { tab_width = arg.parse().unwrap_or_else(|_| usage_error("Invalid space count provided!")) },
+            "-w" | "--width" => { tab_width = arg.parse().unwrap_or_else(|_| usage_error("Invalid space count provided!")) },
             f @ _ => { files.push(f.to_owned()) },
         }
     }
@@ -43,7 +43,7 @@ fn help() {
     println!("USAGE: tabify [OPTIONS] file1..");
     println!("\t -t --tabify        Convert spaces to tabs");
     println!("\t -u --untabify      Convert tabs to spaces");
-    println!("\t -s --spaces SPACES Set the tab width (default: 4)");
+    println!("\t -w --width WIDTH   Set the tab width in spaces (default: 4)");
     println!("\t -h --help          Print this help message and exit");
     println!("\t -V --version       Display version information");
 
