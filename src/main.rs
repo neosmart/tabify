@@ -13,6 +13,7 @@ fn main() {
         match arg.as_str() {
             "-h" | "--help" => help(),
             "-V" | "--version" => version(),
+            "-t" | "--tabify" => { mode = Mode::Tabify },
             "-u" | "--untabify" => { mode = Mode::Untabify },
             "-s" | "--spaces" => { tab_width = arg.parse().unwrap_or_else(|_| usage_error("Invalid space count provided!")) },
             f @ _ => { files.push(f.to_owned()) },
