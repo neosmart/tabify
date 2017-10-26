@@ -5,4 +5,4 @@ authors = ["Mahmoud Al-Qudsi <mqudsi@neosmart.net>"]
 
 [dependencies]
 regex = "0.2"
-tempfile = "2.2"
+uuid = { version = "0.5", features = ["v4"] }

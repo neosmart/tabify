@@ -1,7 +1,7 @@
 extern crate regex;
-extern crate tempfile;
+extern crate uuid;
 
-use std::fs::File;
+use std::fs::{self};
 use std::io::{BufReader, BufWriter};
 use std::io::prelude::*;
 use std::path::Path;
@@ -77,7 +77,7 @@ fn usage_error(msg: &str) -> ! {
 }
 
 fn process_path(path: &Path, mode: &Mode, width: &i32) -> Result<(), String> {
-    use tempfile::tempfile;
+    use uuid::Uuid;
 
     if !path.exists() {
         return Err("file not found!".into());
@@ -86,12 +86,54 @@ fn process_path(path: &Path, mode: &Mode, width: &i32) -> Result<(), String> {
         return Err("path does not refer to a file!".into());
     }
 
-    let file = File::open(path).map_err(|e| format!("{}", e))?;
-    let reader = BufReader::new(file);
-    let temp = tempfile().map_err(|e| format!("{}", e))?;
-    let writer = BufWriter::new(temp);
+    use fs::OpenOptions;
+    let src_dir = path.parent().unwrap();
+    //Create a temporary file in the same directory as the original file
+    //this (likely) ensures that they're on the same filesystem, allowing
+    //us to rename the temporary file to replace the original instead of
+    //copying its contents over when finished.
+    let temp_path = src_dir.join(format!(".{}", Uuid::new_v4().hyphenated()));
 
-    return process(reader, writer, mode, width);
+    {
+        let mut temp = OpenOptions::new().write(true).create(true).open(&temp_path)
+            .map_err(|e| format!("Error creating temporary file: {}", e))?;
+        let mut file = OpenOptions::new().read(true).open(path)
+            .map_err(|e| format!("{}", e))?;
+        let reader = BufReader::new(&mut file);
+        let writer = BufWriter::new(&mut temp);
+
+        process(reader, writer, mode, width)?;
+    }
+
+    //Try replacing the original file by simply renaming the temporary file
+    match fs::rename(&temp_path, path) {
+        Ok(_) => Ok(()),
+        Err(_) => {
+            // eprintln!("Could not rename temp file to source, falling back to copy");
+
+            {
+                //unable to replace via rename, try to delete and rewrite
+                let mut temp = OpenOptions::new().read(true).open(&temp_path)
+                    .map_err(|e| format!("{}", e))?;
+                let mut file = OpenOptions::new().write(true).create(true)
+                    .truncate(true).open(path)
+                    .map_err(|e| format!("{}", e))?;
+
+                if let Err(e) = std::io::copy(&mut temp, &mut file) {
+                    //give up
+                    return Err(format!("{}", e));
+                }
+            }
+
+            //delete the temporary file
+            if fs::remove_file(&temp_path).is_err() {
+                //we shouldn't bail as the operation _did_ succeed,
+                //but with warnings.
+                eprintln!("Warning: could not remove temporary file {}", temp_path.display());
+            }
+            Ok(())
+        }
+    }
 }
 
 fn process<R,W>(reader: BufReader<R>, mut writer: BufWriter<W>, mode: &Mode, width: &i32) -> Result<(), String> where R: Read, W: Write {
