@@ -44,7 +44,8 @@ fn help() {
 }
 
 fn version() {
-    println!("tabify 1.0 by NeoSmart Technologies - https://neosmart.net/");
+    println!("tabify {} by NeoSmart Technologies - https://neosmart.net/",
+             env!("CARGO_PKG_VERSION"));
     println!("Report issues at https://github.com/neosmart/tabify");
 }
 
