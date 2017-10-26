@@ -14,9 +14,13 @@ fn main() {
             "-h" | "--help" => help(),
             "-V" | "--version" => version(),
             "-u" | "--untabify" => { mode = Mode::Untabify },
-            "-s" | "--spaces" => { tab_width = arg.parse().unwrap_or_else(|_| argument_error("Invalid space count provided!")) },
+            "-s" | "--spaces" => { tab_width = arg.parse().unwrap_or_else(|_| usage_error("Invalid space count provided!")) },
             f @ _ => { files.push(f.to_owned()) },
         }
+    }
+
+    if files.is_empty() {
+        usage_error("No files provided!");
     }
 
     for f in &files {
@@ -41,17 +45,22 @@ fn help() {
     println!("\t -s --spaces SPACES Set the tab width (default: 4)");
     println!("\t -h --help          Print this help message and exit");
     println!("\t -V --version       Display version information");
+
+    std::process::exit(0);
 }
 
 fn version() {
     println!("tabify {} by NeoSmart Technologies - https://neosmart.net/",
              env!("CARGO_PKG_VERSION"));
     println!("Report issues at https://github.com/neosmart/tabify");
+
+    std::process::exit(0);
 }
 
-fn argument_error(msg: &str) -> ! {
+fn usage_error(msg: &str) -> ! {
     println!("Error: {}", msg);
     println!("See tabify --help for usage info");
+
     std::process::exit(-1);
 }
 
