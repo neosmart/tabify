@@ -5,8 +5,8 @@ use std::path::Path;
 fn main() {
     let args: Vec<String> = std::env::args().collect();
 
-    let mut tab_width: i32 = 4;
-    let mut mode: Mode = Mode::Tabify;
+    let mut tab_width = 4i32;
+    let mut mode = Mode::Tabify;
     let mut files = Vec::<String>::new();
 
     for arg in args.into_iter().skip(1) {
@@ -65,6 +65,11 @@ fn usage_error(msg: &str) -> ! {
 }
 
 fn process_path(path: &Path, mode: &Mode, width: &i32) -> Result<(), String> {
+    use std::fs::File;
+    use std::io::prelude::*;
+    use std::io::{BufReader, BufWriter};
+    use tempfile::tempfile;
+
     let path_str = path.as_os_str().to_string_lossy();
     if !path.exists() {
         eprintln!("{}: file not found!", path_str);
@@ -73,24 +78,17 @@ fn process_path(path: &Path, mode: &Mode, width: &i32) -> Result<(), String> {
         eprintln!("{} does not refer to a file!", path_str);
     }
 
-    use std::fs::File;
-    use std::io::{BufReader, BufWriter};
-    use std::io::prelude::*;
-    use tempfile::tempfile;
-
-
     let file = File::open(path).map_err(|e| format!("{}", e))?;
     let mut reader = BufReader::new(file);
     let temp = tempfile().map_err(|e| format!("{}", e))?;
     let mut writer = BufWriter::new(temp);
-
 
     let transform = match *mode {
         Mode::Tabify => tabify,
         Mode::Untabify => untabify
     };
 
-    let mut line: String = "".to_owned();
+    let mut line = "".to_owned();
     while reader.read_line(&mut line).unwrap() != 0 {
         let new_line = transform(&line, *width);
         writer.write(new_line.as_bytes()).map_err(|e| format!("{}", e))?;
