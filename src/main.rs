@@ -94,14 +94,14 @@ fn process_path(path: &Path, mode: &Mode, width: &i32) -> Result<(), String> {
     return process(reader, writer, mode, width);
 }
 
-fn process<R,W>(mut reader: BufReader<R>, mut writer: BufWriter<W>, mode: &Mode, width: &i32) -> Result<(), String> where R: Read, W: Write {
+fn process<R,W>(reader: BufReader<R>, mut writer: BufWriter<W>, mode: &Mode, width: &i32) -> Result<(), String> where R: Read, W: Write {
     let transform = match *mode {
         Mode::Tabify => tabify,
         Mode::Untabify => untabify
     };
 
-    let mut line = "".to_owned();
-    while reader.read_line(&mut line).unwrap() != 0 {
+    for line in reader.lines() {
+        let line = line.map_err(|e| format!("{}", e))?;
         let new_line = transform(&line, *width);
         writer.write(new_line.as_bytes()).map_err(|e| format!("{}", e))?;
         writer.write(&[0xAu8]).map_err(|e| format!("{}", e))?;
