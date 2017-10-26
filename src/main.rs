@@ -73,10 +73,10 @@ fn process_path(path: &Path, mode: &Mode, width: &i32) -> Result<(), String> {
 
     let path_str = path.as_os_str().to_string_lossy();
     if !path.exists() {
-        eprintln!("{}: file not found!", path_str);
+        return Err("file not found!");
     }
     if !path.is_file() {
-        eprintln!("{} does not refer to a file!", path_str);
+        return Err("path does not refer to a file!");
     }
 
     let file = File::open(path).map_err(|e| format!("{}", e))?;
