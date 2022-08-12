@@ -4,5 +4,5 @@ version = "0.1.0"
 authors = ["Mahmoud Al-Qudsi <mqudsi@neosmart.net>"]
 
 [dependencies]
-regex = "0.2"
-uuid = { version = "0.5", features = ["v4"] }
+regex = "1.6.0"
+uuid = { version = "1.1.2", features = ["v4"] }
