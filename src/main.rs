@@ -1,9 +1,9 @@
 extern crate regex;
 extern crate uuid;
 
-use std::fs::{self};
-use std::io::{BufReader, BufWriter};
+use std::fs;
 use std::io::prelude::*;
+use std::io::{BufReader, BufWriter};
 use std::path::Path;
 
 fn main() {
@@ -17,23 +17,26 @@ fn main() {
         match arg.as_str() {
             "-h" | "--help" => help(),
             "-V" | "--version" => version(),
-            "-t" | "--tabify" => { mode = Mode::Tabify },
-            "-u" | "--untabify" => { mode = Mode::Untabify },
-            "-w" | "--width" => { tab_width = arg.parse().unwrap_or_else(|_| usage_error("Invalid space count provided!")) },
-            _ => { files.push(arg) },
+            "-t" | "--tabify" => mode = Mode::Tabify,
+            "-u" | "--untabify" => mode = Mode::Untabify,
+            "-w" | "--width" => {
+                tab_width = arg
+                    .parse()
+                    .unwrap_or_else(|_| usage_error("Invalid space count provided!"))
+            }
+            _ => files.push(arg),
         }
     }
 
     if files.is_empty() {
-        //stdin to stdout mode
+        // stdin to stdout mode
         let reader = BufReader::new(std::io::stdin());
         let writer = BufWriter::new(std::io::stdout());
 
         if let Err(e) = process(reader, writer, &mode, &tab_width) {
             eprintln!("{}", e);
         }
-    }
-    else {
+    } else {
         for f in &files {
             let path = std::path::Path::new(f);
             if let Err(e) = process_path(path, &mode, &tab_width) {
@@ -45,7 +48,7 @@ fn main() {
 
 enum Mode {
     Tabify,
-    Untabify
+    Untabify,
 }
 
 fn help() {
@@ -62,8 +65,10 @@ fn help() {
 }
 
 fn version() {
-    println!("tabify {} by NeoSmart Technologies - https://neosmart.net/",
-             env!("CARGO_PKG_VERSION"));
+    println!(
+        "tabify {} by NeoSmart Technologies - https://neosmart.net/",
+        env!("CARGO_PKG_VERSION")
+    );
     println!("Report issues at https://github.com/neosmart/tabify");
 
     std::process::exit(0);
@@ -88,16 +93,21 @@ fn process_path(path: &Path, mode: &Mode, width: &i32) -> Result<(), String> {
 
     use fs::OpenOptions;
     let src_dir = path.parent().unwrap();
-    //Create a temporary file in the same directory as the original file
-    //this (likely) ensures that they're on the same filesystem, allowing
-    //us to rename the temporary file to replace the original instead of
-    //copying its contents over when finished.
+    // Create a temporary file in the same directory as the original file
+    // this (likely) ensures that they're on the same filesystem, allowing
+    // us to rename the temporary file to replace the original instead of
+    // copying its contents over when finished.
     let temp_path = src_dir.join(format!(".{}", Uuid::new_v4().hyphenated()));
 
     {
-        let mut temp = OpenOptions::new().write(true).create(true).open(&temp_path)
+        let mut temp = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .open(&temp_path)
             .map_err(|e| format!("Error creating temporary file: {}", e))?;
-        let mut file = OpenOptions::new().read(true).open(path)
+        let mut file = OpenOptions::new()
+            .read(true)
+            .open(path)
             .map_err(|e| format!("{}", e))?;
         let reader = BufReader::new(&mut file);
         let writer = BufWriter::new(&mut temp);
@@ -105,47 +115,65 @@ fn process_path(path: &Path, mode: &Mode, width: &i32) -> Result<(), String> {
         process(reader, writer, mode, width)?;
     }
 
-    //Try replacing the original file by simply renaming the temporary file
+    // Try replacing the original file by simply renaming the temporary file
     match fs::rename(&temp_path, path) {
         Ok(_) => Ok(()),
         Err(_) => {
             // eprintln!("Could not rename temp file to source, falling back to copy");
 
             {
-                //unable to replace via rename, try to delete and rewrite
-                let mut temp = OpenOptions::new().read(true).open(&temp_path)
+                // Unable to replace via rename, try to delete and rewrite instead.
+                let mut temp = OpenOptions::new()
+                    .read(true)
+                    .open(&temp_path)
                     .map_err(|e| format!("{}", e))?;
-                let mut file = OpenOptions::new().write(true).create(true)
-                    .truncate(true).open(path)
+                let mut file = OpenOptions::new()
+                    .write(true)
+                    .create(true)
+                    .truncate(true)
+                    .open(path)
                     .map_err(|e| format!("{}", e))?;
 
                 if let Err(e) = std::io::copy(&mut temp, &mut file) {
-                    //give up
+                    // Give up
                     return Err(format!("{}", e));
                 }
             }
 
-            //delete the temporary file
+            // Delete the temporary file
             if fs::remove_file(&temp_path).is_err() {
-                //we shouldn't bail as the operation _did_ succeed,
-                //but with warnings.
-                eprintln!("Warning: could not remove temporary file {}", temp_path.display());
+                // We shouldn't bail as the operation _did_ succeed, but with warnings.
+                eprintln!(
+                    "Warning: could not remove temporary file {}",
+                    temp_path.display()
+                );
             }
             Ok(())
         }
     }
 }
 
-fn process<R,W>(reader: BufReader<R>, mut writer: BufWriter<W>, mode: &Mode, width: &i32) -> Result<(), String> where R: Read, W: Write {
+fn process<R, W>(
+    reader: BufReader<R>,
+    mut writer: BufWriter<W>,
+    mode: &Mode,
+    width: &i32,
+) -> Result<(), String>
+where
+    R: Read,
+    W: Write,
+{
     let transform = match *mode {
         Mode::Tabify => tabify,
-        Mode::Untabify => untabify
+        Mode::Untabify => untabify,
     };
 
     for line in reader.lines() {
         let line = line.map_err(|e| format!("{}", e))?;
         let new_line = transform(&line, *width);
-        writer.write(new_line.as_bytes()).map_err(|e| format!("{}", e))?;
+        writer
+            .write(new_line.as_bytes())
+            .map_err(|e| format!("{}", e))?;
         writer.write(&[0xAu8]).map_err(|e| format!("{}", e))?;
     }
 
@@ -154,7 +182,7 @@ fn process<R,W>(reader: BufReader<R>, mut writer: BufWriter<W>, mode: &Mode, wid
 
 enum ParseState {
     Leader,
-    Remainder
+    Remainder,
 }
 
 fn tabify(line: &str, width: i32) -> String {
@@ -164,27 +192,26 @@ fn tabify(line: &str, width: i32) -> String {
 
     for c in line.chars() {
         match state {
-            ParseState::Leader =>
-                match c {
-                    ' ' => {
-                        space_count += 1;
-                        if space_count == width {
-                            space_count = 0;
-                            new_line.push('\t');
-                        }
-                    },
-                    _ => {
-                        //end of leading spaces
-                        state = ParseState::Remainder;
-                        for _ in 0..space_count {
-                            new_line.push(' ');
-                        }
-                        new_line.push(c);
+            ParseState::Leader => match c {
+                ' ' => {
+                    space_count += 1;
+                    if space_count == width {
+                        space_count = 0;
+                        new_line.push('\t');
                     }
-                },
-                ParseState::Remainder => {
+                }
+                _ => {
+                    // End of leading spaces
+                    state = ParseState::Remainder;
+                    for _ in 0..space_count {
+                        new_line.push(' ');
+                    }
                     new_line.push(c);
                 }
+            },
+            ParseState::Remainder => {
+                new_line.push(c);
+            }
         }
     }
 
@@ -195,8 +222,14 @@ fn tabify(line: &str, width: i32) -> String {
 fn tabify_test() {
     assert_eq!("  2 leading spaces", tabify("  2 leading spaces", 4));
     assert_eq!("\t4 leading spaces", tabify("    4 leading spaces", 4));
-    assert_eq!("\t   7 leading spaces", tabify("       7 leading spaces", 4));
-    assert_eq!("\tspaces    in middle", tabify("    spaces    in middle", 4));
+    assert_eq!(
+        "\t   7 leading spaces",
+        tabify("       7 leading spaces", 4)
+    );
+    assert_eq!(
+        "\tspaces    in middle",
+        tabify("    spaces    in middle", 4)
+    );
 }
 
 fn untabify(line: &str, width: i32) -> String {
@@ -205,22 +238,21 @@ fn untabify(line: &str, width: i32) -> String {
 
     for c in line.chars() {
         match state {
-            ParseState::Leader =>
-                match c {
-                    '\t' => {
-                        for _ in 0..width {
-                            new_line.push(' ');
-                        }
-                    },
-                    _ => {
-                        //end of leading tabs
-                        state = ParseState::Remainder;
-                        new_line.push(c);
+            ParseState::Leader => match c {
+                '\t' => {
+                    for _ in 0..width {
+                        new_line.push(' ');
                     }
-                },
-                ParseState::Remainder => {
+                }
+                _ => {
+                    // End of leading tabs
+                    state = ParseState::Remainder;
                     new_line.push(c);
                 }
+            },
+            ParseState::Remainder => {
+                new_line.push(c);
+            }
         }
     }
 
@@ -231,5 +263,8 @@ fn untabify(line: &str, width: i32) -> String {
 fn untabify_test() {
     assert_eq!("    1 leading tab", untabify("\t1 leading tab", 4));
     assert_eq!("        2 leading tabs", untabify("\t\t2 leading tabs", 4));
-    assert_eq!("        \ttab spaces tab", untabify("\t    \ttab spaces tab", 4));
+    assert_eq!(
+        "        \ttab spaces tab",
+        untabify("\t    \ttab spaces tab", 4)
+    );
 }
